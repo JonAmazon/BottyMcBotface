@@ -3,7 +3,7 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include "BrainBox.h"
+#include "RealTimeNeuron.h"
 
 #define OUTPUT_GRID 4
 

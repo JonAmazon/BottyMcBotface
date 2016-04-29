@@ -143,60 +143,161 @@ void renderBrainBox(BrainBox * bb, bool showSynapses)
 	Synapse * synsel;
 }
 
-void renderBeeBoid(node<BeeBoid *> *n,int showTail)
+void renderSpike(Neuron * n)
 {
 	int ntail;
-	BeeBoid *b;
-	Neuron * curr,* sel1, * sel2;
 	
 	if(n)
 	{
-		b = n->data;
 		glPointSize(6.0);
-		if(b->type == EXC){glColor3f(0.0,1.0,1.0);}
-		else{glColor3f(1.0,0.0,1.0);}
-		curr = b->currentNeuron;
-		if(curr)
-		{
-			glBegin(GL_POINTS);
-			glVertex3f(curr->pos.x,curr->pos.y,curr->pos.z);
-			glEnd();
-
-			if(showTail)
-			{
-				glColor3f(0.0,0.5,0.5);
-				sel1 = b->visitedNeurons.readData(0);
-				sel2 = b->visitedNeurons.readData(1);
-				glBegin(GL_LINES);
-				ntail = b->visitedNeurons.registerLen;
-				for(int i = ntail-3; i < ntail-1; ++i)
-				{
-					sel1 = b->visitedNeurons.readData(i);
-					sel2 = b->visitedNeurons.readData(i+1);
-					if(sel1 && sel2)
-					{
-						glVertex3f(sel1->pos.x,sel1->pos.y,sel1->pos.z);
-						glVertex3f(sel2->pos.x,sel2->pos.y,sel2->pos.z);
-					}
-				}
-				if(sel2)
-				{
-					glVertex3f(sel2->pos.x,sel2->pos.y,sel2->pos.z);
-					glVertex3f(curr->pos.x,curr->pos.y,curr->pos.z);
-				}
-				glEnd();
-			}
-		}
-	
-	renderBeeBoid(n->left,showTail);
-	renderBeeBoid(n->right,showTail);
+		if(n->pos.y > 0.98){glColor3f(1.0,0.0,0.7);}
+		else if(n->pos.y > 0.94){glColor3f(0.0,1.0,0.7);}
+		else if(n->pos.y > 0.9){glColor3f(0.0,0.7,1.0);}
+		else if(n->type == EXC){glColor3f(0.0,1.0,1.0);}
+		else if(n->type == INH){glColor3f(1.0,0.0,1.0);}
+		else{glColor3f(0.5,0.5,0.5);}
+		glBegin(GL_POINTS);
+		glVertex3f(n->pos.x,n->pos.y,n->pos.z);
+		glEnd();
 	}
 }
 
-void renderBeeBoids(BrainBox * bb, int showTail)
+void renderSpikes(BrainBox * bb, int showTail)
 {
-	renderBeeBoid(bb->beeBoids.root,showTail);
-	//drawLineCube();
+	std::queue<Neuron *> * q = &(bb->renderQueue);
+	while(!q->empty())
+	{
+		renderSpike(q->front());
+		q->pop();
+	}
+	drawLineCube();
+}
+
+void renderSelNeuron(Neuron * n, CircularRegister * pot, CircularRegister * thresh)
+{
+	int nSyn;
+	float w,p1,p2;
+	float synWidth = 0.05;
+	float scale = 0.5;
+	Neuron * neur;
+	std::list<Synapse *>::iterator selSyn;
+
+	glPushMatrix();
+	glTranslatef(0.3,0.2,0.0);
+	glScalef(0.4,0.6,1.0);
+
+	if(n->type == EXC){glColor3f(0.0,1.0,1.0);}
+	else if(n->type == INH){glColor3f(1.0,0.0,1.0);}
+	glBegin(GL_QUADS);
+	glVertex3f(0.0,0.0,-0.01);
+	glVertex3f(1.0,0.0,-0.01);
+	glVertex3f(1.0,1.0,-0.01);
+	glVertex3f(0.0,1.0,-0.01);
+	glEnd();
+
+	glPushMatrix();
+	glTranslatef(0.02,0.02,0.0);
+	glScalef(0.96,0.96,1.0);
+
+	glColor3f(0.0,0.0,0.0);
+	glBegin(GL_QUADS);
+	glVertex3f(0.0,0.0,0.0);
+	glVertex3f(1.0,0.0,0.0);
+	glVertex3f(1.0,1.0,0.0);
+	glVertex3f(0.0,1.0,0.0);
+	glEnd();
+
+	glBegin(GL_LINES);
+	for(int i = 1; i < CIRCREGLEN; ++i)
+	{
+		glColor3f(0.0,1.0,1.0);
+		p1 = scale*(pot->read(i)); if(p1 > 0.9){p1 = 0.9;}
+		p2 = scale*(pot->read(i+1)); if(p2 > 0.9){p2 = 0.9;}
+		glVertex3f(1.0*i/CIRCREGLEN,0.1 + p1,0.01);
+		glVertex3f(1.0*(i+1)/CIRCREGLEN,0.1 + p2,0.01);
+
+		glColor3f(1.0,0.0,1.0);
+		p1 = scale*(thresh->read(i)); if(p1 > 0.9){p1 = 0.9;}
+		p2 = scale*(thresh->read(i+1)); if(p2 > 0.9){p2 = 0.9;}
+		glVertex3f(1.0*i/CIRCREGLEN,0.1 + p1,0.01);
+		glVertex3f(1.0*(i+1)/CIRCREGLEN,0.1 + p2,0.01);
+	}
+	glEnd();
+	glPopMatrix();
+
+	glPopMatrix();
+
+	glBegin(GL_QUADS);
+	nSyn = n->afferent.size();
+	selSyn = n->afferent.begin();
+	for(int i = 0; i < nSyn; ++i)
+	{
+		neur = (*selSyn)->preSynapticNeuron;
+		w = (*selSyn)->weight;
+		if(neur->type == EXC){glColor3f(0.0,w,w);}
+		else if(neur->type == INH){glColor3f(w,0.0,w);}
+
+		glVertex3f(0.0,1.0*i/nSyn,0.0);
+		glVertex3f(synWidth,1.0*i/nSyn,0.0);
+		glVertex3f(synWidth,1.0*(i+1)/nSyn,0.0);
+		glVertex3f(0.0,1.0*(i+1)/nSyn,0.0);
+		selSyn++;
+	}
+	glEnd();
+
+	glColor3f(0.0,0.5,0.5);
+	glBegin(GL_LINES);
+	for(int i = 0; i < nSyn; ++i)
+	{
+		glVertex3f(synWidth,1.0*(i+0.5)/nSyn,-0.02);
+		glVertex3f(0.5,0.5,-0.02);
+	}
+	glColor3f(0.0,1.0,1.0);
+	glVertex3f(0.0,0.0,0.01);
+	glVertex3f(synWidth,0.0,0.01);
+	glVertex3f(0.0,0.0,0.01);
+	glVertex3f(0.0,1.0,0.01);
+	glVertex3f(synWidth,0.0,0.01);
+	glVertex3f(synWidth,1.0,0.01);
+	glVertex3f(0.0,1.0,0.01);
+	glVertex3f(synWidth,1.0,0.01);
+	glEnd();
+
+	glBegin(GL_QUADS);
+	nSyn = n->efferent.size();
+	selSyn = n->efferent.begin();
+	for(int i = 0; i < nSyn; ++i)
+	{
+		neur = (*selSyn)->postSynapticNeuron;
+		w = (*selSyn)->weight;
+		if(n->type == EXC){glColor3f(0.0,w,w);}
+		else if(n->type == INH){glColor3f(w,0.0,w);}
+
+		glVertex3f(1.0-synWidth,1.0*i/nSyn,0.0);
+		glVertex3f(1.0,1.0*i/nSyn,0.0);
+		glVertex3f(1.0,1.0*(i+1)/nSyn,0.0);
+		glVertex3f(1.0-synWidth,1.0*(i+1)/nSyn,0.0);
+		selSyn++;
+	}
+	glEnd();
+
+	glColor3f(0.0,0.5,0.5);
+	glBegin(GL_LINES);
+	for(int i = 0; i < nSyn; ++i)
+	{
+		glVertex3f(1.0-synWidth,1.0*(i+0.5)/nSyn,-0.02);
+		glVertex3f(0.5,0.5,-0.02);
+	}
+	glColor3f(0.0,1.0,1.0);
+	glVertex3f(1.0-synWidth,0.0,0.01);
+	glVertex3f(1.0,0.0,0.01);
+	glVertex3f(1.0-synWidth,0.0,0.01);
+	glVertex3f(1.0-synWidth,1.0,0.01);
+	glVertex3f(1.0,0.0,0.01);
+	glVertex3f(1.0,1.0,0.01);
+	glVertex3f(1.0-synWidth,1.0,0.01);
+	glVertex3f(1.0,1.0,0.01);
+	glEnd();
 }
 
 void renderOutputState(OutputSystem * os)
@@ -295,7 +396,7 @@ void PicoRenderer::update(PicoSimulation* xsimulation)
 	glScalef(10.0,10.0,10.0);
 	glTranslatef(-0.5,-0.5,-0.5);
 	//renderBrainBox(xsimulation->getBrainBox(),0);
-	renderBeeBoids(xsimulation->getBrainBox(),0);
+	renderSpikes(xsimulation->getBrainBox(),0);
 	glPopMatrix();
 	
 	glPushMatrix();
@@ -317,6 +418,15 @@ void PicoRenderer::update(PicoSimulation* xsimulation)
 	glScalef(10.0,1.0,10.0);
 	glTranslatef(-0.5,0.0,-0.5);
 	renderOutputState(xsimulation->getOutputSystem());
+	glPopMatrix();
+
+	glPushMatrix();
+	glTranslatef(0.0,-8.0,0.0);
+	glScalef(20.0,5.0,1.0);
+	glTranslatef(-0.5,-0.5,0.0);
+	renderSelNeuron(xsimulation->getSelNeuron(),
+		xsimulation->getSelNeuronPot(),
+		xsimulation->getSelNeuronThresh());
 	glPopMatrix();
 
 	glPopMatrix();

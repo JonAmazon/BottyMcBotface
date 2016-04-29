@@ -12,14 +12,16 @@ void PicoSimulation::initialize()
 	brainBox.initializePre();
 	brainBox.initializeVisualPopulation(&visualSystem);
 	brainBox.initializeAudioPopulation(&audioSystem);
-	brainBox.initializeOutputPopulation(400);
-	brainBox.iniaializeBulkPopulation(&brainBox.populations[6], 200000,
+	brainBox.initializeOutputPopulation(800);
+	brainBox.iniaializeBulkPopulation(&brainBox.populations[6], 2000000,
 									  0.3,0.2,0.3,0.7,0.8,0.7);
 	brainBox.initializePost();
 	outputSystem.initialize();
 	//brainBox.print();
 
 	performanceTimer.initialize();
+	selNeuronPot.initialize();
+	selNeuronThresh.initialize();
 	//TEMPORARY FOR TESTING
 	_cam._position.setToZero();
 
@@ -30,6 +32,8 @@ void PicoSimulation::initialize()
 	_cam._FoV = 75.0;
 	/////////////////////
 
+	selNeuron = brainBox.populations[6].neurons.getRandomNode()->data;
+	brainBox.neuronQueue[brainBox.activeQueue].push(selNeuron);
 	audioSystem.startAudioStream();
 	performanceTimer.resetTimer();
 }
@@ -39,10 +43,12 @@ void PicoSimulation::update(PicoInput* xinput,float dtin)
 	_timeAccum += dtin;
 	if(_timeAccum > 0.5){_timeAccum = 0.5;}
 
-	printf("Time since last frame is %f ms with %d boids alive\n",performanceTimer.getDeltaTime()*1000,brainBox.beeBoids.size());
+	printf("Time since last frame is %f ms\n",performanceTimer.getDeltaTime()*1000);
 
 	mcinstance.captureWindow();
 	visualSystem.analyzeCapturedImage(mcinstance.getImageData());
+	audioSystem.captureAudioFrames();
+	audioSystem.analyzeCapturedAudio();
 
 	if(visualSystem.getHealth() < 0.25)
 	{
@@ -53,18 +59,18 @@ void PicoSimulation::update(PicoInput* xinput,float dtin)
 	}
 	else
 	{
-		audioSystem.captureAudioFrames();
-		audioSystem.analyzeCapturedAudio();
-
 		performanceTimer.resetTimer();
-		brainBox.spawnBoidsFromVisualInput(&visualSystem);
-		brainBox.spawnBoidsFromAudioInput(&audioSystem);
-		printf("Spawning new boids took %f ms\n",performanceTimer.getDeltaTime()*1000);
-		brainBox.updateBeeBoidsRandom();
-		printf("Updateing boids took %f ms\n",performanceTimer.getDeltaTime()*1000);
+		brainBox.spawnSpikesFromVisualInput(&visualSystem);
+		brainBox.spawnSpikesFromAudioInput(&audioSystem);
+		printf("Parsing input streams took %f ms\n",performanceTimer.getDeltaTime()*1000);
+		brainBox.update();
+		printf("Updateing spikes took %f ms\n",performanceTimer.getDeltaTime()*1000);
 
 		outputSystem.updateState(&brainBox.populations[OUTPUT]);
 		dispatchOutputToMinecraft();
+		brainBox.neuronQueue[brainBox.activeQueue].push(selNeuron);
+		selNeuronPot.write(selNeuron->potential);
+		selNeuronThresh.write(selNeuron->threshold);
 	}
 
 	if(xinput->getKeyState(VK_RBUTTON))
@@ -73,6 +79,14 @@ void PicoSimulation::update(PicoInput* xinput,float dtin)
 	    _cam._elevation += _mouseSensitivity*(-xinput->getDeltaMposY());
 	    _cam._distance += -0.5*xinput->getDeltaMwheel();
     }
+
+	if(xinput->getKeyWasPressed(VK_UP))
+	{
+		selNeuron = brainBox.populations[6].neurons.getRandomNode()->data;
+		brainBox.neuronQueue[brainBox.activeQueue].push(selNeuron);
+		selNeuronPot.clear();
+		selNeuronThresh.clear();
+	}
 }
 
 void PicoSimulation::release()

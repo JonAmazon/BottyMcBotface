@@ -3,9 +3,9 @@
 void Latch::initialize()
 {
 	decay = 0.985;
-	sensitivity = 0.018;
-	threshUp = 0.75;
-	threshDown = 0.25;
+	sensitivity = 0.2;
+	threshUp = 0.55;
+	threshDown = 0.45;
 
 	state = OUTPUT_DOWN;
 	activity = 0.0;
@@ -62,6 +62,6 @@ void OutputSystem::updateState(Population * p)
 		x = int((n->pos.x)*OUTPUT_GRID);
 		y = int((n->pos.z)*OUTPUT_GRID);
 
-		outState[x][y].update(1.0*(n->numBB));
+		outState[x][y].update(n->potential);
 	}
 }

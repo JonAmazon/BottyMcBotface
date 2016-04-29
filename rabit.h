@@ -341,6 +341,8 @@ struct rabit
 		{
 			dwRect = weight(n)-(weight(n->left) + weight(n->right));
 		}
+		else{dwRect = dw;}
+
 		p = n;
 		while(p)
 		{

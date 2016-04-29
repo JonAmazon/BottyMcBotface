@@ -7,8 +7,42 @@
 #include "MineCraftInstance.h"
 #include "VisualSystem.h"
 #include "AudioSystem.h"
-#include "BrainBox.h"
+#include "RealTimeNeuron.h"
 #include "OutputSystem.h"
+
+#define CIRCREGLEN 100
+
+struct CircularRegister
+{
+	int cursor;
+	float * data;
+
+	void initialize()
+	{
+		cursor = 0;
+		data = new float[CIRCREGLEN];
+		for(int i = 0; i < CIRCREGLEN; ++i)
+		{
+			data[i] = 0.0;
+		}
+	}
+	void write(float d)
+	{
+		data[cursor] = d;
+		cursor = (cursor+1)%CIRCREGLEN;
+	}
+	float read(int idx)
+	{
+		return data[(cursor+idx)%CIRCREGLEN];
+	}
+	void clear()
+	{
+		for(int i = 0; i < CIRCREGLEN; ++i)
+		{
+			data[i] = 0.0;
+		}
+	}
+};
 
 struct PicoCamera
 {
@@ -31,6 +65,10 @@ public:
 	OutputSystem * getOutputSystem(){return &outputSystem;}
 	BrainBox* getBrainBox(){return &brainBox;}
 
+	Neuron * getSelNeuron(){return selNeuron;}
+	CircularRegister * getSelNeuronPot(){return &selNeuronPot;}
+	CircularRegister * getSelNeuronThresh(){return &selNeuronThresh;}
+
 private:
 	float _timeAccum;
 	float _mouseSensitivity;
@@ -42,6 +80,10 @@ private:
 	AudioSystem audioSystem;
 	OutputSystem outputSystem;
 	BrainBox brainBox;
+
+	Neuron * selNeuron;
+	CircularRegister selNeuronPot;
+	CircularRegister selNeuronThresh;
 
 	PicoCamera _cam;
 
