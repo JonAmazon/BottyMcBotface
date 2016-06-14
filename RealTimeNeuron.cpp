@@ -2,7 +2,7 @@
 
 void BrainBox::initializePre()
 {
-	numberOfPopulations = 7;
+	numberOfPopulations = 6+5;
 	activeQueue = 0;
 	simulationTime = 0;
 
@@ -18,21 +18,22 @@ void BrainBox::initializePre()
 	{
 		populations[i].neurons.initialize(random->int64());
 	}
-	
 }
 
 Neuron * BrainBox::addNeuron(Population * p, int t)
 {
 	Neuron * n = new Neuron;
 	n->type = t;
-	n->timeConstant = 2.9*random->doub() + 0.1;
-	n->threshold = 2.0;
-	n->thresholdMin = 0.5;
-	n->threshTimeConst = 30.0;
+	n->timeConstant = 20.0*random->doub() + 10.0;
+	n->threshold = 1.0;
+	n->thresholdMin = 0.1;
+	n->threshTimeConst = 300.0;
 	n->threshDelta = 0.1;
 	n->potential = 0.0;
 	n->input = 0.0;
 	n->lastSpikeArrivalTime = 0;
+	n->lastSpikeTime = 0;
+	n->movable = false;
 
 	p->neurons.addNode(1.0)->data = n;
 
@@ -61,6 +62,7 @@ void BrainBox::initializeVisualPopulation(VisualSystem * vs)
 			n->thresholdMin = 2.0;
 			n->threshDelta = 1.0;
 			n->timeConstant = 0.1;
+			n->movable = false;
 
 			n = addNeuron(&populations[VISUALG],EXC);
 			n->pos.x = random->doub();
@@ -70,6 +72,7 @@ void BrainBox::initializeVisualPopulation(VisualSystem * vs)
 			n->thresholdMin = 2.0;
 			n->threshDelta = 1.0;
 			n->timeConstant = 0.1;
+			n->movable = false;
 
 			n = addNeuron(&populations[VISUALB],EXC);
 			n->pos.x = random->doub();
@@ -79,6 +82,7 @@ void BrainBox::initializeVisualPopulation(VisualSystem * vs)
 			n->thresholdMin = 2.0;
 			n->threshDelta = 1.0;
 			n->timeConstant = 0.1;
+			n->movable = false;
 		}
 	}
 }
@@ -95,6 +99,7 @@ void BrainBox::initializeAudioPopulation(AudioSystem * as)
 		n->pos.y = 0.5*random->doub() + 0.25;
 		n->pos.z = 0.2*random->doub() + 0.4;
 		n->timeConstant = 0.1;
+		n->movable = false;
 	}
 
 	for(int i = 0; i < 10*nF; ++i)
@@ -104,6 +109,7 @@ void BrainBox::initializeAudioPopulation(AudioSystem * as)
 		n->pos.y = 0.5*random->doub() + 0.25;
 		n->pos.z = 0.2*random->doub() + 0.4;
 		n->timeConstant = 0.1;
+		n->movable = false;
 	}
 }
 
@@ -117,7 +123,10 @@ void BrainBox::initializeOutputPopulation(int N)
 		n->pos.x = random->doub();
 		n->pos.y = 0.0;
 		n->pos.z = random->doub();
-		n->threshTimeConst = 5.0;
+		n->threshold = 10.0;
+		n->thresholdMin = 10.0;
+		n->threshTimeConst = 0.1;
+		n->movable = false;
 	}
 }
 
@@ -146,6 +155,13 @@ void BrainBox::addSynapse(Neuron * pre, Neuron * post, float w)
 	post->afferent.push_back(sn);
 }
 
+void BrainBox::removeSynapse(Synapse * s)
+{
+	s->preSynapticNeuron->efferent.remove(s);
+	s->postSynapticNeuron->afferent.remove(s);
+	delete s;
+}
+
 void BrainBox::connectPopulations(Population * pre, Population * post)
 {
 	int nPre = pre->neurons.root->size;
@@ -154,14 +170,14 @@ void BrainBox::connectPopulations(Population * pre, Population * post)
 	Neuron * selPre, * selPost;
 	Synapse * syn;
 
-	for(int i = 0; i < nPre; ++i)
+	for(int i = 0; i < 2*nPre; ++i)
 	{
 		selPre = pre->neurons.getRandomNode()->data;
-		K = (random->int32())%20+10;
+		K = (random->int32())%20+1;
 		for(int j = 0; j < K; ++j)
 		{
 			selPost = post->neurons.getRandomNode()->data;
-			addSynapse(selPre,selPost,0.1*random->doub());
+			addSynapse(selPre,selPost,0.5*random->doub());
 		}
 	}
 
@@ -174,12 +190,15 @@ void BrainBox::initializePost()
 	connectPopulations(&populations[VISUALG],&populations[6]);
 	connectPopulations(&populations[VISUALB],&populations[6]);
 
+	connectPopulations(&populations[6],&populations[7]);
+	connectPopulations(&populations[7],&populations[8]);
+	connectPopulations(&populations[8],&populations[9]);
+	connectPopulations(&populations[9],&populations[10]);
 
-	connectPopulations(&populations[6],&populations[6]);
-	connectPopulations(&populations[6],&populations[OUTPUT]);
+	connectPopulations(&populations[8],&populations[OUTPUT]);
 
-	connectPopulations(&populations[AUDIOL],&populations[6]);
-	connectPopulations(&populations[AUDIOR],&populations[6]);
+	connectPopulations(&populations[AUDIOL],&populations[8]);
+	connectPopulations(&populations[AUDIOR],&populations[8]);
 }
 
 void BrainBox::spawnSpikesFromVisualInput(VisualSystem *vs)
@@ -266,12 +285,22 @@ void BrainBox::spawnSpikesFromAudioInput(AudioSystem *as)
 	}
 }
 
+float STDP(float dt)
+{
+	float timeScale = 100.0;
+	return 0.1*expf(-dt*dt/(2*timeScale*timeScale));
+}
+
 void BrainBox::update()
 {
 	int nSpike = 0;
-	float learningRate = 0.01;
-	Neuron * sel;
-	std::list<Synapse *>::iterator selSyn;
+	int synDeleted = 0;
+	float learningRate = 0.001;
+	float posDelta = 0.01;
+	Neuron * sel,* selPost,* selPre;
+	Synapse * selSyn;
+	std::list<Synapse *>::iterator iterSyn;
+	PicoVec4f dP;
 	
 
 	printf("Handling %d potential spikes this frame\n",neuronQueue[activeQueue].size());
@@ -289,31 +318,34 @@ void BrainBox::update()
 		{
 			nSpike++;
 			sel->potential = 0.0;
-
-			for(selSyn = sel->afferent.begin(); selSyn != sel->afferent.end(); ++selSyn)
-			{
-				(*selSyn)->weight -= learningRate*((*selSyn)->weight);
-			}
+			sel->lastSpikeTime = simulationTime;
 
 			//Iterate through the synapses and transmit
-			for(selSyn = sel->efferent.begin(); selSyn != sel->efferent.end(); ++selSyn)
+			for(iterSyn = sel->efferent.begin(); iterSyn != sel->efferent.end(); ++iterSyn)
 			{
 				if(random->doub() < 1.0-failureRate)
 				{
-					(*selSyn)->postSynapticNeuron->input += (sel->type)*((*selSyn)->weight);
-					(*selSyn)->weight += learningRate*(1.0 - (*selSyn)->weight);
-					neuronQueue[(activeQueue+1)%2].push((*selSyn)->postSynapticNeuron);
+					selPost = (*iterSyn)->postSynapticNeuron;
+					selPost->input += (sel->type)*((*iterSyn)->weight);
+					neuronQueue[(activeQueue+1)%2].push(selPost);
 				}
 			}
+			for(iterSyn = sel->afferent.begin(); iterSyn != sel->afferent.end(); ++iterSyn)
+			{
+				selPre = (*iterSyn)->preSynapticNeuron;
+				(*iterSyn)->weight += learningRate*STDP(float(simulationTime-selPre->lastSpikeTime)) - learningRate*(*iterSyn)->weight;
+				if((*iterSyn)->weight < 0.0){(*iterSyn)->weight = 0.0;}
+				if((*iterSyn)->weight > 1.0){(*iterSyn)->weight = 1.0;}
+			}
+
 			sel->threshold += sel->threshDelta;
 			renderQueue.push(sel);
 		}
 		neuronQueue[activeQueue].pop();
 	}
 	
-	
-
 	simulationTime++;
 	activeQueue = (activeQueue+1)%2;
+	printf("deleted %d synapses\n",synDeleted);
 	printf("Handled %d spikes this frame\n",nSpike);
 }

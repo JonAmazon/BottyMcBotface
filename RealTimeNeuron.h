@@ -36,6 +36,7 @@ struct Synapse
 
 struct Neuron
 {
+	bool movable;
 	int type;
 	float timeConstant;
 	float threshTimeConst;
@@ -46,6 +47,7 @@ struct Neuron
 	float input;
 
 	unsigned long long int lastSpikeArrivalTime;
+	unsigned long long int lastSpikeTime;
 	PicoVec4f pos;
 	std::list<Synapse *> afferent;
 	std::list<Synapse *> efferent;
@@ -70,10 +72,12 @@ struct BrainBox
 
 	std::queue<Neuron *> renderQueue;
 	std::queue<Neuron *> neuronQueue[2];
+	std::queue<Synapse *> synToDelete;
 	Population * populations;
 	stdRan * random;
 
 	void addSynapse(Neuron * pre, Neuron * post, float w);
+	void removeSynapse(Synapse * s);
 	Neuron * addNeuron(Population *p,int t);
 
 	void initializePre();
@@ -90,7 +94,6 @@ struct BrainBox
 	void spawnSpikesFromVisualInput(VisualSystem *vs);
 	void spawnSpikesFromAudioInput(AudioSystem *as);
 
-	float STDPfunction(long long int dt);
 	void update();
 
 	void ouputToFile(const char * brainFile);

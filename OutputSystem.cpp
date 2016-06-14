@@ -2,8 +2,8 @@
 
 void Latch::initialize()
 {
-	decay = 0.985;
-	sensitivity = 0.2;
+	decay = 0.995;
+	sensitivity = 1.0;
 	threshUp = 0.55;
 	threshDown = 0.45;
 

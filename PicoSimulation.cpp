@@ -6,15 +6,23 @@ void PicoSimulation::initialize()
 	_mouseSensitivity = 0.5;
 	
 	
-	mcinstance.initialize(__TEXT("Minecraft 1.9.2"));
+	mcinstance.initialize(__TEXT("Minecraft 1.10"));
 	visualSystem.initialize(mcinstance.getResX(),mcinstance.getResY());
 	audioSystem.initialize();
 	brainBox.initializePre();
 	brainBox.initializeVisualPopulation(&visualSystem);
 	brainBox.initializeAudioPopulation(&audioSystem);
 	brainBox.initializeOutputPopulation(800);
-	brainBox.iniaializeBulkPopulation(&brainBox.populations[6], 2000000,
-									  0.3,0.2,0.3,0.7,0.8,0.7);
+	brainBox.iniaializeBulkPopulation(&brainBox.populations[6], 100000,
+									  0.2,0.8,0.2,0.8,0.8,0.8);
+	brainBox.iniaializeBulkPopulation(&brainBox.populations[7], 100000,
+									  0.2,0.65,0.2,0.8,0.65,0.8);
+	brainBox.iniaializeBulkPopulation(&brainBox.populations[8], 100000,
+									  0.2,0.5,0.2,0.8,0.5,0.8);
+	brainBox.iniaializeBulkPopulation(&brainBox.populations[9], 100000,
+									  0.2,0.35,0.2,0.8,0.35,0.8);
+	brainBox.iniaializeBulkPopulation(&brainBox.populations[10], 100000,
+									  0.2,0.2,0.2,0.8,0.2,0.8);
 	brainBox.initializePost();
 	outputSystem.initialize();
 	//brainBox.print();
@@ -64,7 +72,7 @@ void PicoSimulation::update(PicoInput* xinput,float dtin)
 		brainBox.spawnSpikesFromAudioInput(&audioSystem);
 		printf("Parsing input streams took %f ms\n",performanceTimer.getDeltaTime()*1000);
 		brainBox.update();
-		printf("Updateing spikes took %f ms\n",performanceTimer.getDeltaTime()*1000);
+		printf("Updateing spikes took %f ms\n\n",performanceTimer.getDeltaTime()*1000);
 
 		outputSystem.updateState(&brainBox.populations[OUTPUT]);
 		dispatchOutputToMinecraft();
